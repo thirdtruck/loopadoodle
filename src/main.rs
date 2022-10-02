@@ -15,6 +15,8 @@ use dropbox_sdk::{files, UserAuthClient};
 use dropbox_sdk::default_client::UserAuthDefaultClient;
 
 use std::collections::VecDeque;
+use std::fs::File;
+use std::io::{Write};
 
 use regex::Regex;
 
@@ -109,6 +111,26 @@ fn oembed(username: &str, filename: &str) -> Json<OEmbed> {
     Json(OEmbed::new())
 }
 
+fn download_music_file<'a, T: UserAuthClient>(client: &'a T, metadata: &files::FileMetadata) {
+    let metadata = metadata.clone();
+    let filename = metadata.name;
+    let filepath = metadata.path_display.unwrap_or(filename);
+
+    println!("Downloading: {}", filepath);
+
+    let download_arg = files::DownloadArg::new(filepath.to_string());
+    let result = files::download(client, &download_arg, None, Some(metadata.size));
+    let result = result.unwrap().unwrap();
+    let mut body = result.body.unwrap();
+
+    let mut buffer = Vec::new();
+    body.read_to_end(&mut buffer).unwrap();
+
+    let path = "/tmp/latest-download.mp3";
+    let mut file = File::create(path).unwrap();
+    file.write_all(&buffer).unwrap();
+}
+
 #[launch]
 fn rocket() -> _ {
     let auth = dropbox_sdk::oauth2::get_auth_from_env_or_prompt();
@@ -121,8 +143,7 @@ fn rocket() -> _ {
     for file in music_files {
         match file {
             files::Metadata::File(entry) => {
-                let filepath = entry.path_display.unwrap_or(entry.name);
-                println!("File: {}", filepath);
+                download_music_file(&client, &entry);
             }
             _ => {
                 println!("Unexpected metadata: {:?}", file);
