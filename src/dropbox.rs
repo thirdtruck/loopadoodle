@@ -3,7 +3,9 @@ use dropbox_sdk::default_client::UserAuthDefaultClient;
 use regex::Regex;
 use std::collections::VecDeque;
 
-use crate::MusicFile;
+#[derive(Responder)]
+#[response(status = 200)]
+pub struct MusicFile(pub Vec<u8>);
 
 pub fn fetch_music_files(folder_path: &str) -> Option<MusicFile> {
     let mut downloaded_file: Option<MusicFile> = None;
@@ -28,7 +30,7 @@ pub fn fetch_music_files(folder_path: &str) -> Option<MusicFile> {
     downloaded_file
 }
 
-pub fn list_music_files<'a, T: UserAuthClient>(client: &'a T, folder_path: &str) -> Vec<dropbox_sdk::files::Metadata> {
+fn list_music_files<'a, T: UserAuthClient>(client: &'a T, folder_path: &str) -> Vec<dropbox_sdk::files::Metadata> {
     let mp3_regex = Regex::new(r".*.mp3").unwrap();
 
     let listed_files = files::list_folder(

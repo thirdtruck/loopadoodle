@@ -1,3 +1,5 @@
+mod dropbox;
+
 #[macro_use]
 extern crate rocket;
 
@@ -7,7 +9,7 @@ extern crate rocket_include_static_resources;
 use rocket::State;
 use rocket_include_static_resources::{EtagIfNoneMatch, StaticContextManager, StaticResponse};
 
-mod dropbox;
+use dropbox::MusicFile;
 
 static_response_handler! {
     "/~jaycie/looptober-jaycie-2022-10-01.mp3" => looptober_jaycie_2022_10_01 => "looptober-jaycie-2022-10-01",
@@ -37,10 +39,6 @@ fn from_dropbox(state: &State<Option<MusicFile>>) -> MusicFile {
         MusicFile(vec![])
     }
 }
-
-#[derive(Responder)]
-#[response(status = 200)]
-pub struct MusicFile(Vec<u8>);
 
 #[launch]
 fn rocket() -> _ {
