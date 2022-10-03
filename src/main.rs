@@ -111,7 +111,17 @@ fn oembed(username: &str, filename: &str) -> Json<OEmbed> {
     Json(OEmbed::new())
 }
 
-fn download_music_file<'a, T: UserAuthClient>(client: &'a T, metadata: &files::FileMetadata) {
+#[get("/from_dropbox.mp3")]
+fn from_dropbox(state: &State<Option<MusicFile>>) -> MusicFile {
+    if let Some(raw) = state.inner() {
+        let raw = raw.0.clone();
+        MusicFile(raw)
+    } else {
+        MusicFile(vec![])
+    }
+}
+
+fn download_music_file<'a, T: UserAuthClient>(client: &'a T, metadata: &files::FileMetadata) -> Vec<u8> {
     let metadata = metadata.clone();
     let filename = metadata.name;
     let filepath = metadata.path_display.unwrap_or(filename);
@@ -121,29 +131,35 @@ fn download_music_file<'a, T: UserAuthClient>(client: &'a T, metadata: &files::F
     let download_arg = files::DownloadArg::new(filepath.to_string());
     let result = files::download(client, &download_arg, None, Some(metadata.size));
     let result = result.unwrap().unwrap();
+    println!("metadata.size({}), result.content_length({:?})", metadata.size, result.content_length);
     let mut body = result.body.unwrap();
 
     let mut buffer = Vec::new();
     body.read_to_end(&mut buffer).unwrap();
 
-    let path = "/tmp/latest-download.mp3";
-    let mut file = File::create(path).unwrap();
-    file.write_all(&buffer).unwrap();
+    buffer
 }
+
+#[derive(Responder)]
+#[response(status = 200)]
+struct MusicFile(Vec<u8>);
 
 #[launch]
 fn rocket() -> _ {
+    let folder_path = "/Looptober/2022/".to_string();
+
+    let mut downloaded_file: Option<MusicFile> = Some(MusicFile(vec![1, 2, 3, 4, 5]));
+
     let auth = dropbox_sdk::oauth2::get_auth_from_env_or_prompt();
     let client = UserAuthDefaultClient::new(auth);
-
-    let folder_path = "/Looptober/2022/".to_string();
 
     let music_files = list_music_files(&client, &folder_path);
 
     for file in music_files {
         match file {
             files::Metadata::File(entry) => {
-                download_music_file(&client, &entry);
+                let raw = download_music_file(&client, &entry);
+                downloaded_file = Some(MusicFile(raw));
             }
             _ => {
                 println!("Unexpected metadata: {:?}", file);
@@ -156,7 +172,8 @@ fn rocket() -> _ {
             "looptober-jaycie-2022-10-01" => "music/looptober-2022-10-01.mp3",
             "readme" => "README.md",
         ))
-        .mount("/", routes![oembed, looptober_jaycie_2022_10_01])
+        .mount("/", routes![oembed, from_dropbox, looptober_jaycie_2022_10_01])
+        .manage(downloaded_file)
 }
 
 struct DirectoryIterator<'a, T: UserAuthClient> {
