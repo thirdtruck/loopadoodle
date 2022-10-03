@@ -30,8 +30,18 @@ fn oembed(username: &str, filename: &str) -> Json<OEmbed> {
 }
 */
 
+#[get("/from_dropbox/<index>")]
+fn from_dropbox(state: &State<Vec<MusicFile>>, index: usize) -> MusicFile {
+    if let Some(raw) = state.get(index) {
+        let raw = raw.0.clone();
+        MusicFile(raw)
+    } else {
+        MusicFile(vec![])
+    }
+}
+
 #[get("/from_dropbox.mp3")]
-fn from_dropbox(state: &State<Option<MusicFile>>) -> MusicFile {
+fn from_dropbox_example(state: &State<Option<MusicFile>>) -> MusicFile {
     if let Some(raw) = state.inner() {
         let raw = raw.0.clone();
         MusicFile(raw)

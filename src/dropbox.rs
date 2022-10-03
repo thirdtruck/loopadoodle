@@ -7,19 +7,19 @@ use std::collections::VecDeque;
 #[response(status = 200)]
 pub struct MusicFile(pub Vec<u8>);
 
-pub fn fetch_music_files(folder_path: &str) -> Option<MusicFile> {
-    let mut downloaded_file: Option<MusicFile> = None;
-
+pub fn fetch_music_files(folder_path: &str) -> Vec<MusicFile> {
     let auth = dropbox_sdk::oauth2::get_auth_from_env_or_prompt();
     let client = UserAuthDefaultClient::new(auth);
 
     let music_files = list_music_files(&client, folder_path);
 
+    let mut downloaded_files = vec![];
+
     for file in music_files {
         match file {
             files::Metadata::File(entry) => {
                 let raw = download_music_file(&client, &entry);
-                downloaded_file = Some(MusicFile(raw));
+                downloaded_files.push(MusicFile(raw));
             }
             _ => {
                 println!("Unexpected metadata: {:?}", file);
@@ -27,7 +27,7 @@ pub fn fetch_music_files(folder_path: &str) -> Option<MusicFile> {
         }
     }
 
-    downloaded_file
+    downloaded_files
 }
 
 fn list_music_files<'a, T: UserAuthClient>(client: &'a T, folder_path: &str) -> Vec<dropbox_sdk::files::Metadata> {
