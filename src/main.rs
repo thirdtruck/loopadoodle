@@ -1,3 +1,5 @@
+const BUILD_NUMBER: usize = 1;
+
 mod dropbox;
 
 #[macro_use]
@@ -52,6 +54,8 @@ fn from_dropbox_example(state: &State<Option<MusicFile>>) -> MusicFile {
 
 #[launch]
 fn rocket() -> _ {
+    println!("Initializing {} build number {}", env!("CARGO_PKG_NAME"), BUILD_NUMBER);
+
     let folder_path = "/Looptober/2022/".to_string();
 
     let downloaded_file = dropbox::fetch_music_files(&folder_path);
