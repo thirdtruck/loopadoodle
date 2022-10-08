@@ -42,16 +42,6 @@ fn from_dropbox(state: &State<Vec<MusicFile>>, index: usize) -> MusicFile {
     }
 }
 
-#[get("/from_dropbox.mp3")]
-fn from_dropbox_example(state: &State<Option<MusicFile>>) -> MusicFile {
-    if let Some(raw) = state.inner() {
-        let raw = raw.0.clone();
-        MusicFile(raw)
-    } else {
-        MusicFile(vec![])
-    }
-}
-
 #[launch]
 fn rocket() -> _ {
     println!("Initializing {} build number {}", env!("CARGO_PKG_NAME"), BUILD_NUMBER);
