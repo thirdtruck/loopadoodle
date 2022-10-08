@@ -81,7 +81,6 @@ fn download_music_file<'a, T: UserAuthClient>(client: &'a T, metadata: &files::F
     let download_arg = files::DownloadArg::new(filepath.to_string());
     let result = files::download(client, &download_arg, None, Some(metadata.size));
     let result = result.unwrap().unwrap();
-    println!("metadata.size({}), result.content_length({:?})", metadata.size, result.content_length);
     let mut body = result.body.unwrap();
 
     let mut buffer = Vec::new();
