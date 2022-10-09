@@ -9,6 +9,7 @@ extern crate rocket;
 extern crate rocket_include_static_resources;
 
 use rocket::State;
+use rocket::http::Header;
 use rocket_include_static_resources::{EtagIfNoneMatch, StaticContextManager, StaticResponse};
 
 use dropbox::MusicFile;
@@ -32,13 +33,23 @@ fn oembed(username: &str, filename: &str) -> Json<OEmbed> {
 }
 */
 
+#[get("/~jaycie/<year>/<month>/<day>")]
+fn music_for_user(state: &State<Vec<MusicFile>>, year: usize, month: usize, day: usize) -> MusicFile {
+    println!("Loading music file for date: {}/{}/{}", year, month, day);
+
+    let filename = format!("looptober-jaycie-{}-{}-{}.mp3", year, month, day);
+
+    MusicFile::new(vec![], &filename)
+}
+
 #[get("/from_dropbox/<index>")]
 fn from_dropbox(state: &State<Vec<MusicFile>>, index: usize) -> MusicFile {
     if let Some(raw) = state.get(index) {
-        let raw = raw.0.clone();
-        MusicFile(raw)
+        let raw = raw.body.clone();
+        let filename = format!("looptober-{}.mp3", index);
+        MusicFile::new(raw, &filename)
     } else {
-        MusicFile(vec![])
+        MusicFile::new(vec![], "no-such-file.mp3")
     }
 }
 

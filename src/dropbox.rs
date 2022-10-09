@@ -2,10 +2,25 @@ use dropbox_sdk::{files, UserAuthClient};
 use dropbox_sdk::default_client::UserAuthDefaultClient;
 use regex::Regex;
 use std::collections::VecDeque;
+use rocket::http::Header;
 
 #[derive(Responder)]
 #[response(status = 200)]
-pub struct MusicFile(pub Vec<u8>);
+pub struct MusicFile {
+    pub body: Vec<u8>,
+    pub example: Header<'static>,
+}
+
+impl MusicFile {
+    pub fn new(body: Vec<u8>, filename: &str) -> Self {
+        let content_disposition = format!("inline; filename=\"{}\"", filename);
+
+        Self {
+            body,
+            example: Header::new("Content-Disposition", content_disposition),
+        }
+    }
+}
 
 pub fn fetch_music_files(folder_path: &str) -> Vec<MusicFile> {
     let auth = dropbox_sdk::oauth2::get_auth_from_env_or_prompt();
@@ -19,7 +34,8 @@ pub fn fetch_music_files(folder_path: &str) -> Vec<MusicFile> {
         match file {
             files::Metadata::File(entry) => {
                 let raw = download_music_file(&client, &entry);
-                downloaded_files.push(MusicFile(raw));
+                let file = MusicFile::new(raw, "potato");
+                downloaded_files.push(file);
             }
             _ => {
                 println!("Unexpected metadata: {:?}", file);
