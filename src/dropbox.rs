@@ -4,22 +4,18 @@ use regex::Regex;
 use std::collections::VecDeque;
 use std::collections::HashMap;
 use std::fmt;
-use rocket::http::Header;
 
-#[derive(Clone, Responder)]
-#[response(status = 200)]
+#[derive(Clone)]
 pub struct MusicFile {
+    pub filename: String,
     pub body: Vec<u8>,
-    content_disposition: Header<'static>,
 }
 
 impl MusicFile {
     pub fn new(body: Vec<u8>, filename: &str) -> Self {
-        let content_disposition = format!("inline; filename=\"{}\"", filename);
-
         Self {
             body,
-            content_disposition: Header::new("Content-Disposition", content_disposition),
+            filename: filename.to_string(),
         }
     }
 }
@@ -27,8 +23,8 @@ impl MusicFile {
 impl fmt::Debug for MusicFile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MusicFile")
-            .field("body", &self.body.len())
-            .field("content_disposition", &self.content_disposition)
+            .field("filename", &self.filename)
+            .field("body (size)", &self.body.len())
             .finish()
     }
 }

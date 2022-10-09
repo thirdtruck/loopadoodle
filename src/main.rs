@@ -1,4 +1,4 @@
-const BUILD_NUMBER: usize = 2;
+const BUILD_NUMBER: usize = 3;
 
 mod dropbox;
 
@@ -11,12 +11,31 @@ extern crate rocket_include_static_resources;
 use std::collections::HashMap;
 
 use rocket::State;
+use rocket::http::Header;
 use rocket_include_static_resources::{EtagIfNoneMatch, StaticContextManager, StaticResponse};
 
 use dropbox::MusicFile;
 
 static_response_handler! {
     "/~jaycie/looptober-jaycie-2022-10-01.mp3" => looptober_jaycie_2022_10_01 => "looptober-jaycie-2022-10-01",
+}
+
+#[derive(Clone, Debug, Responder)]
+#[response(status = 200)]
+pub struct MusicFileResponse {
+    body: Vec<u8>,
+    content_disposition: Header<'static>,
+}
+
+impl MusicFileResponse {
+    pub fn new(music_file: &MusicFile) -> Self {
+        let content_disposition = format!("inline; filename=\"{}\"", music_file.filename);
+
+        Self {
+            body: music_file.body.clone(),
+            content_disposition: Header::new("Content-Disposition", content_disposition),
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -36,11 +55,11 @@ fn oembed(username: &str, filename: &str) -> Json<OEmbed> {
 */
 
 #[get("/~jaycie/<year>/<month>/<day>")]
-fn music_for_user(state: &State<HashMap<String, MusicFile>>, year: usize, month: usize, day: usize) -> Option<MusicFile> {
+fn music_for_user(state: &State<HashMap<String, MusicFile>>, year: usize, month: usize, day: usize) -> Option<MusicFileResponse> {
     let filename = format!("looptober-jaycie-{:04}-{:02}-{:02}.mp3", year, month, day);
 
-    if let Some(music) = state.get(&filename) {
-        Some(music.clone())
+    if let Some(music_file) = state.get(&filename) {
+        Some(MusicFileResponse::new(&music_file))
     } else {
         None
     }
