@@ -2,13 +2,15 @@ use dropbox_sdk::{files, UserAuthClient};
 use dropbox_sdk::default_client::UserAuthDefaultClient;
 use regex::Regex;
 use std::collections::VecDeque;
+use std::collections::HashMap;
+use std::fmt;
 use rocket::http::Header;
 
-#[derive(Responder)]
+#[derive(Clone, Responder)]
 #[response(status = 200)]
 pub struct MusicFile {
     pub body: Vec<u8>,
-    pub example: Header<'static>,
+    example: Header<'static>,
 }
 
 impl MusicFile {
@@ -20,22 +22,40 @@ impl MusicFile {
             example: Header::new("Content-Disposition", content_disposition),
         }
     }
+
+    pub fn missing() -> Self {
+        Self::new(vec![], "no-such-file.mp3")
+    }
 }
 
-pub fn fetch_music_files(folder_path: &str) -> Vec<MusicFile> {
+impl fmt::Debug for MusicFile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MusicFile")
+            .field("body", &self.body.len())
+            .field("example", &self.example)
+            .finish()
+    }
+}
+
+pub fn fetch_music_files(folder_path: &str) -> (HashMap<String, MusicFile>, Vec<MusicFile>) {
     let auth = dropbox_sdk::oauth2::get_auth_from_env_or_prompt();
     let client = UserAuthDefaultClient::new(auth);
 
     let music_files = list_music_files(&client, folder_path);
 
     let mut downloaded_files = vec![];
+    let mut files_by_name = HashMap::new();
 
     for file in music_files {
         match file {
             files::Metadata::File(entry) => {
+                let filename = entry.name.clone();
                 let raw = download_music_file(&client, &entry);
-                let file = MusicFile::new(raw, "potato");
-                downloaded_files.push(file);
+
+                let music_file = MusicFile::new(raw, &filename);
+
+                files_by_name.insert(filename, music_file.clone());
+                downloaded_files.push(music_file.clone());
             }
             _ => {
                 println!("Unexpected metadata: {:?}", file);
@@ -43,7 +63,7 @@ pub fn fetch_music_files(folder_path: &str) -> Vec<MusicFile> {
         }
     }
 
-    downloaded_files
+    (files_by_name, downloaded_files)
 }
 
 fn list_music_files<'a, T: UserAuthClient>(client: &'a T, folder_path: &str) -> Vec<dropbox_sdk::files::Metadata> {

@@ -8,8 +8,9 @@ extern crate rocket;
 #[macro_use]
 extern crate rocket_include_static_resources;
 
+use std::collections::HashMap;
+
 use rocket::State;
-use rocket::http::Header;
 use rocket_include_static_resources::{EtagIfNoneMatch, StaticContextManager, StaticResponse};
 
 use dropbox::MusicFile;
@@ -34,12 +35,14 @@ fn oembed(username: &str, filename: &str) -> Json<OEmbed> {
 */
 
 #[get("/~jaycie/<year>/<month>/<day>")]
-fn music_for_user(state: &State<Vec<MusicFile>>, year: usize, month: usize, day: usize) -> MusicFile {
-    println!("Loading music file for date: {}/{}/{}", year, month, day);
+fn music_for_user(state: &State<HashMap<String, MusicFile>>, year: usize, month: usize, day: usize) -> MusicFile {
+    let filename = format!("looptober-jaycie-{:04}-{:02}-{:02}.mp3", year, month, day);
 
-    let filename = format!("looptober-jaycie-{}-{}-{}.mp3", year, month, day);
-
-    MusicFile::new(vec![], &filename)
+    if let Some(music) = state.get(&filename) {
+        music.clone()
+    } else {
+        MusicFile::missing()
+    }
 }
 
 #[get("/from_dropbox/<index>")]
@@ -49,7 +52,7 @@ fn from_dropbox(state: &State<Vec<MusicFile>>, index: usize) -> MusicFile {
         let filename = format!("looptober-{}.mp3", index);
         MusicFile::new(raw, &filename)
     } else {
-        MusicFile::new(vec![], "no-such-file.mp3")
+        MusicFile::missing()
     }
 }
 
@@ -59,7 +62,7 @@ fn rocket() -> _ {
 
     let folder_path = "/Looptober/2022/".to_string();
 
-    let downloaded_file = dropbox::fetch_music_files(&folder_path);
+    let (files_by_name, downloaded_files) = dropbox::fetch_music_files(&folder_path);
 
     rocket::build()
         .attach(static_resources_initializer!(
@@ -69,7 +72,9 @@ fn rocket() -> _ {
         .mount("/", routes![
                // oembed,
                from_dropbox,
+               music_for_user,
                looptober_jaycie_2022_10_01,
         ])
-        .manage(downloaded_file)
+        .manage(downloaded_files)
+        .manage(files_by_name)
 }
