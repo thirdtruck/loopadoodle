@@ -10,7 +10,7 @@ use rocket::http::Header;
 #[response(status = 200)]
 pub struct MusicFile {
     pub body: Vec<u8>,
-    example: Header<'static>,
+    content_disposition: Header<'static>,
 }
 
 impl MusicFile {
@@ -19,7 +19,7 @@ impl MusicFile {
 
         Self {
             body,
-            example: Header::new("Content-Disposition", content_disposition),
+            content_disposition: Header::new("Content-Disposition", content_disposition),
         }
     }
 
@@ -32,7 +32,7 @@ impl fmt::Debug for MusicFile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MusicFile")
             .field("body", &self.body.len())
-            .field("example", &self.example)
+            .field("content_disposition", &self.content_disposition)
             .finish()
     }
 }

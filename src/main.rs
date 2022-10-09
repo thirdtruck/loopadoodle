@@ -1,4 +1,4 @@
-const BUILD_NUMBER: usize = 1;
+const BUILD_NUMBER: usize = 2;
 
 mod dropbox;
 
