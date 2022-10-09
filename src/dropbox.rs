@@ -22,10 +22,6 @@ impl MusicFile {
             content_disposition: Header::new("Content-Disposition", content_disposition),
         }
     }
-
-    pub fn missing() -> Self {
-        Self::new(vec![], "no-such-file.mp3")
-    }
 }
 
 impl fmt::Debug for MusicFile {

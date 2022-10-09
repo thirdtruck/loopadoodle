@@ -19,6 +19,7 @@ static_response_handler! {
     "/~jaycie/looptober-jaycie-2022-10-01.mp3" => looptober_jaycie_2022_10_01 => "looptober-jaycie-2022-10-01",
 }
 
+#[allow(dead_code)]
 #[get("/")]
 fn index(
     static_resources: &State<StaticContextManager>,
@@ -35,24 +36,13 @@ fn oembed(username: &str, filename: &str) -> Json<OEmbed> {
 */
 
 #[get("/~jaycie/<year>/<month>/<day>")]
-fn music_for_user(state: &State<HashMap<String, MusicFile>>, year: usize, month: usize, day: usize) -> MusicFile {
+fn music_for_user(state: &State<HashMap<String, MusicFile>>, year: usize, month: usize, day: usize) -> Option<MusicFile> {
     let filename = format!("looptober-jaycie-{:04}-{:02}-{:02}.mp3", year, month, day);
 
     if let Some(music) = state.get(&filename) {
-        music.clone()
+        Some(music.clone())
     } else {
-        MusicFile::missing()
-    }
-}
-
-#[get("/from_dropbox/<index>")]
-fn from_dropbox(state: &State<Vec<MusicFile>>, index: usize) -> MusicFile {
-    if let Some(raw) = state.get(index) {
-        let raw = raw.body.clone();
-        let filename = format!("looptober-{}.mp3", index);
-        MusicFile::new(raw, &filename)
-    } else {
-        MusicFile::missing()
+        None
     }
 }
 
@@ -71,7 +61,6 @@ fn rocket() -> _ {
         ))
         .mount("/", routes![
                // oembed,
-               from_dropbox,
                music_for_user,
                looptober_jaycie_2022_10_01,
         ])
