@@ -38,6 +38,14 @@ impl MusicFileResponse {
     }
 }
 
+#[derive(Responder)]
+enum RefreshOutcome {
+    #[response(status = 200)]
+    Success(String),
+    #[response(status = 500)]
+    Error(String),
+}
+
 #[allow(dead_code)]
 #[get("/")]
 fn index(
@@ -53,6 +61,13 @@ fn oembed(username: &str, filename: &str) -> Json<OEmbed> {
     Json(OEmbed::new())
 }
 */
+
+#[post("/~jaycie/refresh-music")]
+fn refresh_music(state: &State<HashMap<String, MusicFile>>) -> RefreshOutcome {
+    let username = "jaycie".to_string();
+
+    RefreshOutcome::Success(format!("Successfully refreshed music files for {}.", username))
+}
 
 #[get("/~jaycie/<year>/<month>/<day>")]
 fn music_for_user(state: &State<HashMap<String, MusicFile>>, year: usize, month: usize, day: usize) -> Option<MusicFileResponse> {
@@ -81,6 +96,7 @@ fn rocket() -> _ {
         .mount("/", routes![
                // oembed,
                music_for_user,
+               refresh_music,
                looptober_jaycie_2022_10_01,
         ])
         .manage(downloaded_files)
