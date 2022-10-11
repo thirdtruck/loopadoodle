@@ -1,4 +1,4 @@
-const BUILD_NUMBER: usize = 3;
+const BUILD_NUMBER: usize = 4;
 
 mod dropbox;
 
@@ -8,13 +8,11 @@ extern crate rocket;
 #[macro_use]
 extern crate rocket_include_static_resources;
 
-use std::collections::HashMap;
-
 use rocket::State;
 use rocket::http::Header;
 use rocket_include_static_resources::{EtagIfNoneMatch, StaticContextManager, StaticResponse};
 
-use dropbox::MusicFile;
+use dropbox::{MusicFile, MusicAlbum};
 
 static_response_handler! {
     "/~jaycie/looptober-jaycie-2022-10-01.mp3" => looptober_jaycie_2022_10_01 => "looptober-jaycie-2022-10-01",
@@ -63,17 +61,17 @@ fn oembed(username: &str, filename: &str) -> Json<OEmbed> {
 */
 
 #[post("/~jaycie/refresh-music")]
-fn refresh_music(state: &State<HashMap<String, MusicFile>>) -> RefreshOutcome {
+fn refresh_music(state: &State<MusicAlbum>) -> RefreshOutcome {
     let username = "jaycie".to_string();
 
     RefreshOutcome::Success(format!("Successfully refreshed music files for {}.", username))
 }
 
 #[get("/~jaycie/<year>/<month>/<day>")]
-fn music_for_user(state: &State<HashMap<String, MusicFile>>, year: usize, month: usize, day: usize) -> Option<MusicFileResponse> {
+fn music_for_user(state: &State<MusicAlbum>, year: usize, month: usize, day: usize) -> Option<MusicFileResponse> {
     let filename = format!("looptober-jaycie-{:04}-{:02}-{:02}.mp3", year, month, day);
 
-    if let Some(music_file) = state.get(&filename) {
+    if let Some(music_file) = state.tracks.get(&filename) {
         Some(MusicFileResponse::new(&music_file))
     } else {
         None

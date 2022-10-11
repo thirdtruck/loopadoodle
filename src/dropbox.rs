@@ -29,7 +29,12 @@ impl fmt::Debug for MusicFile {
     }
 }
 
-pub fn fetch_music_files(folder_path: &str) -> (HashMap<String, MusicFile>, Vec<MusicFile>) {
+#[derive(Debug)]
+pub struct MusicAlbum {
+    pub tracks: HashMap<String, MusicFile>,
+}
+
+pub fn fetch_music_files(folder_path: &str) -> (MusicAlbum, Vec<MusicFile>) {
     let auth = dropbox_sdk::oauth2::get_auth_from_env_or_prompt();
     let client = UserAuthDefaultClient::new(auth);
 
@@ -55,7 +60,11 @@ pub fn fetch_music_files(folder_path: &str) -> (HashMap<String, MusicFile>, Vec<
         }
     }
 
-    (files_by_name, downloaded_files)
+    let album = MusicAlbum {
+        tracks: files_by_name,
+    };
+
+    (album, downloaded_files)
 }
 
 fn list_music_files<'a, T: UserAuthClient>(client: &'a T, folder_path: &str) -> Vec<dropbox_sdk::files::Metadata> {
