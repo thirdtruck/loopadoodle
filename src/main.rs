@@ -1,4 +1,5 @@
 const BUILD_NUMBER: usize = 4;
+const FOLDER_PATH: &str = "/Looptober/2022/";
 
 mod dropbox;
 
@@ -8,15 +9,20 @@ extern crate rocket;
 #[macro_use]
 extern crate rocket_include_static_resources;
 
+use std::sync::{Arc, RwLock};
+
 use rocket::State;
 use rocket::http::Header;
 use rocket_include_static_resources::{EtagIfNoneMatch, StaticContextManager, StaticResponse};
 
 use dropbox::{MusicFile, MusicAlbum};
 
+type EditableMusicAlbum = Arc<RwLock<MusicAlbum>>;
+
 static_response_handler! {
     "/~jaycie/looptober-jaycie-2022-10-01.mp3" => looptober_jaycie_2022_10_01 => "looptober-jaycie-2022-10-01",
 }
+
 
 #[derive(Clone, Debug, Responder)]
 #[response(status = 200)]
@@ -61,18 +67,34 @@ fn oembed(username: &str, filename: &str) -> Json<OEmbed> {
 */
 
 #[post("/~jaycie/refresh-music")]
-fn refresh_music(state: &State<MusicAlbum>) -> RefreshOutcome {
+fn refresh_music(state: &State<EditableMusicAlbum>) -> RefreshOutcome {
     let username = "jaycie".to_string();
 
-    RefreshOutcome::Success(format!("Successfully refreshed music files for {}.", username))
+    let lock = Arc::clone(state.inner());
+    let locked_album = lock.write();
+
+    if let Ok(mut album) = locked_album {
+        let (new_album, _) = dropbox::fetch_music_files(FOLDER_PATH);
+        *album = new_album;
+        RefreshOutcome::Success(format!("Successfully refreshed music files for {}.", username))
+    } else {
+        RefreshOutcome::Error("Unable to update album".to_string())
+    }
 }
 
 #[get("/~jaycie/<year>/<month>/<day>")]
-fn music_for_user(state: &State<MusicAlbum>, year: usize, month: usize, day: usize) -> Option<MusicFileResponse> {
+fn music_for_user(state: &State<EditableMusicAlbum>, year: usize, month: usize, day: usize) -> Option<MusicFileResponse> {
     let filename = format!("looptober-jaycie-{:04}-{:02}-{:02}.mp3", year, month, day);
 
-    if let Some(music_file) = state.tracks.get(&filename) {
-        Some(MusicFileResponse::new(&music_file))
+    let lock = Arc::clone(state.inner());
+    let locked_album = lock.read();
+
+    if let Ok(album) = locked_album {
+        if let Some(music_file) = album.tracks.get(&filename) {
+            Some(MusicFileResponse::new(&music_file))
+        } else {
+            None
+        }
     } else {
         None
     }
@@ -82,9 +104,8 @@ fn music_for_user(state: &State<MusicAlbum>, year: usize, month: usize, day: usi
 fn rocket() -> _ {
     println!("Initializing {} build number {}", env!("CARGO_PKG_NAME"), BUILD_NUMBER);
 
-    let folder_path = "/Looptober/2022/".to_string();
-
-    let (files_by_name, downloaded_files) = dropbox::fetch_music_files(&folder_path);
+    let (music_album, downloaded_files) = dropbox::fetch_music_files(FOLDER_PATH);
+    let editable_album = Arc::new(RwLock::new(music_album));
 
     rocket::build()
         .attach(static_resources_initializer!(
@@ -98,5 +119,5 @@ fn rocket() -> _ {
                looptober_jaycie_2022_10_01,
         ])
         .manage(downloaded_files)
-        .manage(files_by_name)
+        .manage(editable_album)
 }
