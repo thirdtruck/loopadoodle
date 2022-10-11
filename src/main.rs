@@ -100,6 +100,24 @@ fn music_for_user(state: &State<EditableMusicAlbum>, year: usize, month: usize, 
     }
 }
 
+#[get("/~jaycie/<year>/<month>/<day>/<format>")]
+fn music_for_user_by_format(state: &State<EditableMusicAlbum>, year: usize, month: usize, day: usize, format: String) -> Option<MusicFileResponse> {
+    let filename = format!("looptober-jaycie-{:04}-{:02}-{:02}.{}", year, month, day, format);
+
+    let lock = Arc::clone(state.inner());
+    let locked_album = lock.read();
+
+    if let Ok(album) = locked_album {
+        if let Some(music_file) = album.tracks.get(&filename) {
+            Some(MusicFileResponse::new(&music_file))
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
 #[launch]
 fn rocket() -> _ {
     println!("Initializing {} build number {}", env!("CARGO_PKG_NAME"), BUILD_NUMBER);
@@ -115,6 +133,7 @@ fn rocket() -> _ {
         .mount("/", routes![
                // oembed,
                music_for_user,
+               music_for_user_by_format,
                refresh_music,
                looptober_jaycie_2022_10_01,
         ])

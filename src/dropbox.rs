@@ -68,7 +68,7 @@ pub fn fetch_music_files(folder_path: &str) -> (MusicAlbum, Vec<MusicFile>) {
 }
 
 fn list_music_files<'a, T: UserAuthClient>(client: &'a T, folder_path: &str) -> Vec<dropbox_sdk::files::Metadata> {
-    let mp3_regex = Regex::new(r".*.mp3").unwrap();
+    let extension_regex = Regex::new(r".*\.(mp3|m4a|ogg)").unwrap();
 
     let listed_files = files::list_folder(
         client,
@@ -99,7 +99,7 @@ fn list_music_files<'a, T: UserAuthClient>(client: &'a T, folder_path: &str) -> 
                 files::Metadata::File(entry) => {
                     let entry = entry.clone();
                     let filename = entry.path_display.unwrap_or(entry.name);
-                    mp3_regex.is_match(&filename)
+                    extension_regex.is_match(&filename)
                 },
                 _ => false,
             }
