@@ -1,7 +1,14 @@
-const BUILD_NUMBER: usize = 5;
+const BUILD_NUMBER: usize = 6;
 const FOLDER_PATH: &str = "/Looptober/2022/";
 
+pub mod music_provider;
 mod dropbox;
+
+mod prelude {
+    pub use crate::music_provider::*;
+}
+
+use prelude::*;
 
 #[macro_use]
 extern crate rocket;
@@ -14,8 +21,6 @@ use std::sync::{Arc, RwLock};
 use rocket::State;
 use rocket::http::Header;
 use rocket_include_static_resources::{EtagIfNoneMatch, StaticContextManager, StaticResponse};
-
-use dropbox::{MusicFile, MusicAlbum};
 
 type EditableMusicAlbum = Arc<RwLock<MusicAlbum>>;
 
@@ -74,7 +79,8 @@ fn refresh_music(state: &State<EditableMusicAlbum>) -> RefreshOutcome {
     let locked_album = lock.write();
 
     if let Ok(mut album) = locked_album {
-        let (new_album, _) = dropbox::fetch_music_files(FOLDER_PATH);
+        let music_provider: Box<dyn MusicProvider> = Box::new(dropbox::DropboxHosted::new(FOLDER_PATH));
+        let (new_album, _) = music_provider.fetch_music_files();
         *album = new_album;
         RefreshOutcome::Success(format!("Successfully refreshed music files for {}.", username))
     } else {
@@ -115,7 +121,9 @@ fn music_for_user_by_format(state: &State<EditableMusicAlbum>, year: usize, mont
 fn rocket() -> _ {
     println!("Initializing {} build number {}", env!("CARGO_PKG_NAME"), BUILD_NUMBER);
 
-    let (music_album, downloaded_files) = dropbox::fetch_music_files(FOLDER_PATH);
+    let music_provider: Box<dyn MusicProvider> = Box::new(dropbox::DropboxHosted::new(FOLDER_PATH));
+
+    let (music_album, downloaded_files) = music_provider.fetch_music_files();
     let editable_album = Arc::new(RwLock::new(music_album));
 
     rocket::build()

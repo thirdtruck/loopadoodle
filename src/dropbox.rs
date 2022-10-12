@@ -1,129 +1,121 @@
+use crate::prelude::*;
+
 use dropbox_sdk::{files, UserAuthClient};
 use dropbox_sdk::default_client::UserAuthDefaultClient;
 use regex::Regex;
 use std::collections::VecDeque;
 use std::collections::HashMap;
-use std::fmt;
 
-#[derive(Clone)]
-pub struct MusicFile {
-    pub filename: String,
-    pub body: Vec<u8>,
+pub struct DropboxHosted {
+    folder_path: String,
 }
 
-impl MusicFile {
-    pub fn new(body: Vec<u8>, filename: &str) -> Self {
+impl DropboxHosted {
+    pub fn new(folder_path: &str) -> Self {
         Self {
-            body,
-            filename: filename.to_string(),
-        }
-    }
-}
-
-impl fmt::Debug for MusicFile {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("MusicFile")
-            .field("filename", &self.filename)
-            .field("body (size)", &self.body.len())
-            .finish()
-    }
-}
-
-#[derive(Debug)]
-pub struct MusicAlbum {
-    pub tracks: HashMap<String, MusicFile>,
-}
-
-pub fn fetch_music_files(folder_path: &str) -> (MusicAlbum, Vec<MusicFile>) {
-    let auth = dropbox_sdk::oauth2::get_auth_from_env_or_prompt();
-    let client = UserAuthDefaultClient::new(auth);
-
-    let music_files = list_music_files(&client, folder_path);
-
-    let mut downloaded_files = vec![];
-    let mut files_by_name = HashMap::new();
-
-    for file in music_files {
-        match file {
-            files::Metadata::File(entry) => {
-                let filename = entry.name.clone();
-                let raw = download_music_file(&client, &entry);
-
-                let music_file = MusicFile::new(raw, &filename);
-
-                files_by_name.insert(filename, music_file.clone());
-                downloaded_files.push(music_file.clone());
-            }
-            _ => {
-                println!("Unexpected metadata: {:?}", file);
-            }
+            folder_path: folder_path.to_string(),
         }
     }
 
-    let album = MusicAlbum {
-        tracks: files_by_name,
-    };
+    fn collect_music_files(&self) -> (MusicAlbum, Vec<MusicFile>) {
+        let auth = dropbox_sdk::oauth2::get_auth_from_env_or_prompt();
+        let client = UserAuthDefaultClient::new(auth);
 
-    (album, downloaded_files)
-}
+        let music_files = self.list_music_files(&client);
 
-fn list_music_files<'a, T: UserAuthClient>(client: &'a T, folder_path: &str) -> Vec<dropbox_sdk::files::Metadata> {
-    let extension_regex = Regex::new(r".*\.(mp3|m4a|ogg)").unwrap();
+        let mut downloaded_files = vec![];
+        let mut files_by_name = HashMap::new();
 
-    let listed_files = files::list_folder(
-        client,
-        &files::ListFolderArg::new(folder_path.into()).with_recursive(true),
-    );
-
-    let result = listed_files.unwrap().unwrap();
-    let cursor = if result.has_more {
-        Some(result.cursor)
-    } else {
-        None
-    };
-
-    let buffer: VecDeque<dropbox_sdk::files::Metadata> = result.entries.into();
-
-    let directory = DirectoryIterator {
-        client,
-        cursor,
-        buffer,
-    };
-
-    let metadata: Vec<dropbox_sdk::files::Metadata> = directory.collect();
-
-    metadata
-        .iter()
-        .filter(|file| {
+        for file in music_files {
             match file {
                 files::Metadata::File(entry) => {
-                    let entry = entry.clone();
-                    let filename = entry.path_display.unwrap_or(entry.name);
-                    extension_regex.is_match(&filename)
-                },
-                _ => false,
+                    let filename = entry.name.clone();
+                    let raw = self.download_music_file(&client, &entry);
+
+                    let music_file = MusicFile::new(raw, &filename);
+
+                    files_by_name.insert(filename, music_file.clone());
+                    downloaded_files.push(music_file.clone());
+                }
+                _ => {
+                    println!("Unexpected metadata: {:?}", file);
+                }
             }
-        })
-        .map(|file| file.clone())
-        .collect()
+        }
+
+        let album = MusicAlbum {
+            tracks: files_by_name,
+        };
+
+        (album, downloaded_files)
+    }
+
+    fn list_music_files<'a, T: UserAuthClient>(&self, client: &'a T) -> Vec<dropbox_sdk::files::Metadata> {
+        let extension_regex = Regex::new(r".*\.(mp3|m4a|ogg)").unwrap();
+
+        let folder_path = self.folder_path.clone();
+
+        let listed_files = files::list_folder(
+            client,
+            &files::ListFolderArg::new(folder_path).with_recursive(true),
+        );
+
+        let result = listed_files.unwrap().unwrap();
+        let cursor = if result.has_more {
+            Some(result.cursor)
+        } else {
+            None
+        };
+
+        let buffer: VecDeque<dropbox_sdk::files::Metadata> = result.entries.into();
+
+        let directory = DirectoryIterator {
+            client,
+            cursor,
+            buffer,
+        };
+
+        let metadata: Vec<dropbox_sdk::files::Metadata> = directory.collect();
+
+        metadata
+            .iter()
+            .filter(|file| {
+                match file {
+                    files::Metadata::File(entry) => {
+                        let entry = entry.clone();
+                        let filename = entry.path_display.unwrap_or(entry.name);
+                        extension_regex.is_match(&filename)
+                    },
+                    _ => false,
+                }
+            })
+            .map(|file| file.clone())
+            .collect()
+    }
+
+    fn download_music_file<'a, T: UserAuthClient>(&self, client: &'a T, metadata: &files::FileMetadata) -> Vec<u8> {
+        let metadata = metadata.clone();
+        let filename = metadata.name;
+        let filepath = metadata.path_display.unwrap_or(filename);
+
+        println!("Downloading: {}", filepath);
+
+        let download_arg = files::DownloadArg::new(filepath.to_string());
+        let result = files::download(client, &download_arg, None, Some(metadata.size));
+        let result = result.unwrap().unwrap();
+        let mut body = result.body.unwrap();
+
+        let mut buffer = Vec::new();
+        body.read_to_end(&mut buffer).unwrap();
+
+        buffer
+    }
 }
 
-fn download_music_file<'a, T: UserAuthClient>(client: &'a T, metadata: &files::FileMetadata) -> Vec<u8> {
-    let metadata = metadata.clone();
-    let filename = metadata.name;
-    let filepath = metadata.path_display.unwrap_or(filename);
-
-    println!("Downloading: {}", filepath);
-
-    let download_arg = files::DownloadArg::new(filepath.to_string());
-    let result = files::download(client, &download_arg, None, Some(metadata.size));
-    let result = result.unwrap().unwrap();
-    let mut body = result.body.unwrap();
-
-    let mut buffer = Vec::new();
-    body.read_to_end(&mut buffer).unwrap();
-
-    buffer
+impl MusicProvider for DropboxHosted {
+    fn fetch_music_files(&self) -> (MusicAlbum, Vec<MusicFile>) {
+        self.collect_music_files()
+    }
 }
 
 struct DirectoryIterator<'a, T: UserAuthClient> {
