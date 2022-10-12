@@ -82,15 +82,12 @@ fn refresh_music(state: &State<EditableMusicAlbum>) -> RefreshOutcome {
     }
 }
 
-#[get("/~jaycie/<year>/<month>/<day>")]
-fn music_for_user(state: &State<EditableMusicAlbum>, year: usize, month: usize, day: usize) -> Option<MusicFileResponse> {
-    let filename = format!("looptober-jaycie-{:04}-{:02}-{:02}.mp3", year, month, day);
-
+fn fetch_music(state: &State<EditableMusicAlbum>, filename: &str) -> Option<MusicFileResponse> {
     let lock = Arc::clone(state.inner());
     let locked_album = lock.read();
 
     if let Ok(album) = locked_album {
-        if let Some(music_file) = album.tracks.get(&filename) {
+        if let Some(music_file) = album.tracks.get(filename) {
             Some(MusicFileResponse::new(&music_file))
         } else {
             None
@@ -100,22 +97,18 @@ fn music_for_user(state: &State<EditableMusicAlbum>, year: usize, month: usize, 
     }
 }
 
+#[get("/~jaycie/<year>/<month>/<day>")]
+fn music_for_user(state: &State<EditableMusicAlbum>, year: usize, month: usize, day: usize) -> Option<MusicFileResponse> {
+    let filename = format!("looptober-jaycie-{:04}-{:02}-{:02}.mp3", year, month, day);
+
+    fetch_music(state, &filename)
+}
+
 #[get("/~jaycie/<year>/<month>/<day>/<format>")]
 fn music_for_user_by_format(state: &State<EditableMusicAlbum>, year: usize, month: usize, day: usize, format: String) -> Option<MusicFileResponse> {
     let filename = format!("looptober-jaycie-{:04}-{:02}-{:02}.{}", year, month, day, format);
 
-    let lock = Arc::clone(state.inner());
-    let locked_album = lock.read();
-
-    if let Ok(album) = locked_album {
-        if let Some(music_file) = album.tracks.get(&filename) {
-            Some(MusicFileResponse::new(&music_file))
-        } else {
-            None
-        }
-    } else {
-        None
-    }
+    fetch_music(state, &filename)
 }
 
 #[launch]
