@@ -8,20 +8,22 @@ use std::collections::HashMap;
 
 pub struct DropboxHosted {
     folder_path: String,
+    client: UserAuthDefaultClient,
 }
 
 impl DropboxHosted {
     pub fn new(folder_path: &str) -> Self {
+        let auth = dropbox_sdk::oauth2::get_auth_from_env_or_prompt();
+        let client = UserAuthDefaultClient::new(auth);
+
         Self {
             folder_path: folder_path.to_string(),
+            client,
         }
     }
 
     fn collect_music_files(&self) -> (MusicAlbum, Vec<MusicFile>) {
-        let auth = dropbox_sdk::oauth2::get_auth_from_env_or_prompt();
-        let client = UserAuthDefaultClient::new(auth);
-
-        let music_files = self.list_music_files(&client);
+        let music_files = self.list_music_files();
 
         let mut downloaded_files = vec![];
         let mut files_by_name = HashMap::new();
@@ -30,7 +32,7 @@ impl DropboxHosted {
             match file {
                 files::Metadata::File(entry) => {
                     let filename = entry.name.clone();
-                    let raw = self.download_music_file(&client, &entry);
+                    let raw = self.download_music_file(&entry);
 
                     let music_file = MusicFile::new(raw, &filename);
 
@@ -50,13 +52,13 @@ impl DropboxHosted {
         (album, downloaded_files)
     }
 
-    fn list_music_files<'a, T: UserAuthClient>(&self, client: &'a T) -> Vec<dropbox_sdk::files::Metadata> {
+    fn list_music_files(&self) -> Vec<dropbox_sdk::files::Metadata> {
         let extension_regex = Regex::new(r".*\.(mp3|m4a|ogg)").unwrap();
 
         let folder_path = self.folder_path.clone();
 
         let listed_files = files::list_folder(
-            client,
+            &self.client,
             &files::ListFolderArg::new(folder_path).with_recursive(true),
         );
 
@@ -70,7 +72,7 @@ impl DropboxHosted {
         let buffer: VecDeque<dropbox_sdk::files::Metadata> = result.entries.into();
 
         let directory = DirectoryIterator {
-            client,
+            client: &self.client,
             cursor,
             buffer,
         };
@@ -93,7 +95,7 @@ impl DropboxHosted {
             .collect()
     }
 
-    fn download_music_file<'a, T: UserAuthClient>(&self, client: &'a T, metadata: &files::FileMetadata) -> Vec<u8> {
+    fn download_music_file(&self, metadata: &files::FileMetadata) -> Vec<u8> {
         let metadata = metadata.clone();
         let filename = metadata.name;
         let filepath = metadata.path_display.unwrap_or(filename);
@@ -101,7 +103,7 @@ impl DropboxHosted {
         println!("Downloading: {}", filepath);
 
         let download_arg = files::DownloadArg::new(filepath.to_string());
-        let result = files::download(client, &download_arg, None, Some(metadata.size));
+        let result = files::download(&self.client, &download_arg, None, Some(metadata.size));
         let result = result.unwrap().unwrap();
         let mut body = result.body.unwrap();
 
